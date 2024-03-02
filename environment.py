@@ -53,11 +53,11 @@ class Environment:
         plt.axis('equal')  # Maintain equal scaling for x and y axe
 
         # plot reference pendolum
-        x,y = pendolum_kinematics(self.mparams.L, self.reference_state[0])
+        x, y = pendolum_kinematics(self.mparams.L, self.reference_state[0])
         plt.plot([0, x], [0, y], marker='o', linestyle='--', markersize=4, color='grey')
 
         # plot actual pendolum
-        x,y = pendolum_kinematics(self.mparams.L, self.theta)
+        x, y = pendolum_kinematics(self.mparams.L, self.theta)
         plt.plot([0, x], [0, y], marker='o', markersize=8, color='b')
         plt.plot([0, 0], marker='o', markersize=12, color='black')
 
