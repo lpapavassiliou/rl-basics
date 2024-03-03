@@ -1,8 +1,10 @@
 import numpy as np
-from physics_functions import pendolum_kinematics, angle_norm2
-from parameters import ModelParams, LearningParams
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from scipy.integrate import odeint
+
+from physics_functions import pendolum_kinematics, angle_norm2
+from parameters import ModelParams, LearningParams
 
 class Environment:
 
@@ -21,24 +23,29 @@ class Environment:
         self.steps_taken = 0
         return self.get_state()
     
-    def dynamics(self, torque):
-        # theta_dot_dot = (- self.mparams.m * self.mparams.g * np.sin(self.theta) - torque - self.mparams.d * self.theta_dot)/rod_inertia(self.mparams.m, self.mparams.L)
-        gravity = - self.mparams.g / self.mparams.L * np.sin(self.theta)
-        damping = - self.mparams.d * self.theta_dot
-        theta_dot_dot = gravity + torque + damping
-        return theta_dot_dot
+    def dynamics(self, x, t, u):
+        f = np.zeros_like(x)
+        
+        f[0] = x[1]
+        
+        gravity = - self.mparams.g / self.mparams.L * np.sin(x[0])
+        damping = 0. #- self.mparams.d * x[1]
+        f[1] = gravity + damping + u
+
+        return f
     
     def step(self, torque):
         reward = self.reward(torque)
-        k1 = self.dynamics(torque)
-        k2 = self.dynamics(self.mparams.dt * k1/2 + torque)
-        k3 = self.dynamics(self.mparams.dt * k2/2 + torque)
-        k4 = self.dynamics(self.mparams.dt * k3 + torque)
-        self.theta = self.theta + self.mparams.dt * self.theta_dot
-        self.theta_dot = self.theta_dot + self.mparams.dt/6 * (k1 + 2*k2 + 2*k3 + k4)
-        next_state = self.get_state()
+        x0 = self.get_state()
+        next_state = np.array(odeint(self.dynamics, 
+                                x0, 
+                                np.linspace(0, self.mparams.dt, 2), 
+                                args=(torque, ))[-1, :])
+        self.theta = next_state[0]
+        self.theta_dot = next_state[1]
         self.steps_taken += 1
-        done = self.steps_taken > 2000
+        done = self.steps_taken > self.lparams.max_steps
+        print(f"Steps: {self.steps_taken}/{self.lparams.max_steps}")
         return next_state, reward, done
     
     def get_state(self):

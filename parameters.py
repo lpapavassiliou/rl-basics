@@ -7,4 +7,5 @@ class ModelParams:
     process_noise_std = 0.05
 
 class LearningParams:
+    max_steps = 500
     action_weight = 0.2
