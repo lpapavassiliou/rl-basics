@@ -1,8 +1,5 @@
 import numpy as np
 
-def rod_inertia(m, L):
-    return 1/12 * m * L**2
-
 def pendolum_kinematics(L, theta):
     x = L * np.sin(theta)
     y = -L * np.cos(theta)

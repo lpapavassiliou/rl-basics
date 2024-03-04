@@ -8,13 +8,13 @@ from parameters import ModelParams, LearningParams
 
 class Environment:
 
-    def __init__(self, theta_init=0, theta_dot_init=0):
+    def __init__(self, theta_init=0, theta_dot_init=0, reference_state=np.zeros(2)):
         self.theta = theta_init
         self.theta_dot = theta_dot_init
         self.mparams = ModelParams()
         self.lparams = LearningParams()
         self.done = False
-        self.reference_state = np.zeros(2)
+        self.reference_state = reference_state
         self.steps_taken = 0
 
     def reset(self):
@@ -38,9 +38,9 @@ class Environment:
         reward = self.reward(torque)
         x0 = self.get_state()
         next_state = np.array(odeint(self.dynamics, 
-                                x0, 
-                                np.linspace(0, self.mparams.dt, 2), 
-                                args=(torque, ))[-1, :])
+                                     x0, 
+                                     np.linspace(0, self.mparams.dt, 2), 
+                                     args=(torque, ))[-1, :])
         self.theta = next_state[0]
         self.theta_dot = next_state[1]
         self.steps_taken += 1
@@ -52,8 +52,7 @@ class Environment:
         return np.array([self.theta, self.theta_dot])
     
     def set_reference(self, reference_state):
-        reference_state = np.array(reference_state)
-        self.reference_state = reference_state
+        self.reference_state = np.array(reference_state)
     
     def visualize(self, action=None):
         plt.clf()  # Clear the previous frame
@@ -78,7 +77,7 @@ class Environment:
             plt.bar(x=0.3, height=0.25, width=0.051, y=-0.2-0.125, color='grey')
             plt.bar(x=0.3, height=0.005*action, width=0.05, y=-0.2, color='red')
             plt.bar(x=0.3, height=0.001, width=0.05, y=-0.2, color='black')
-        plt.pause(0.001)  # Pause to allow the plot to be displayed
+        plt.pause(1/60.)  # Pause to allow the plot to be displayed
     
     def reward(self, action_to_take):
         state = self.get_state()
