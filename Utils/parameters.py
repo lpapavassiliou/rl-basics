@@ -9,5 +9,5 @@ class ModelParams:
     u_max = 25
 
 class LearningParams:
-    max_steps = 500
-    action_weight = 0.2
+    max_steps = 200
+    action_weight = 0.001

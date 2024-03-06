@@ -6,13 +6,12 @@ def pendolum_kinematics(L, theta):
     return x, y
 
 def standardize_angle(angle):
-    while angle < -np.pi:
-        angle += 2*np.pi
-    while angle > np.pi:
-        angle -= 2*np.pi
-    return angle
+    return np.mod(angle, 2*np.pi)
 
 def angle_norm2(angle1, angle2):
     angle1 = standardize_angle(angle1)
     angle2 = standardize_angle(angle2)
-    return (angle1 - angle2)**2
+    diff = np.abs(angle1 - angle2)
+    # Wrap around to the shortest distance
+    diff = np.minimum(diff, 2*np.pi - diff)
+    return diff**2

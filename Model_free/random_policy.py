@@ -6,5 +6,5 @@ class Random:
         self.u_max = u_max
         self.u_min = u_min
 
-    def get_action(self, x):
+    def get_action(self, x, u, training):
         return self.u_min + (self.u_max-self.u_min)*np.random.random()
