@@ -2,9 +2,8 @@ import numpy as np
 
 class Random:
 
-    def __init__(self, u_max = 5, u_min = -5):
-        self.u_max = u_max
-        self.u_min = u_min
+    def __init__(self, u_max_abs = 2):
+        self.u_max_abs = u_max_abs
 
-    def get_action(self, x, u, training):
-        return self.u_min + (self.u_max-self.u_min)*np.random.random()
+    def get_action(self, x):
+        return -self.u_max_abs + 2*self.u_max_abs*np.random.random()

@@ -5,9 +5,7 @@ class ModelParams:
     g = 9.81 # gravtity constant
     d = 0.5 # damping
     process_noise_std = 0.05
-    u_min = -25
-    u_max = 25
+    u_max_abs = 2
 
 class LearningParams:
     max_steps = 200
-    action_weight = 0.001
