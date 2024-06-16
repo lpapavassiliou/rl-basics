@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from copy import copy
 import pickle
 
@@ -69,8 +70,7 @@ class TD_learning:
         episode_reward = 0
         episode_rewards = []
         aggr_episode_rewards = {'it': [], 'avg': [], 'ep': []}
-        print(f"Training episode {it+1}/{self.hyperparamters['train_episodes']}")
-        while it < self.hyperparamters["train_episodes"]:
+        for it in tqdm(range(self.hyperparamters["train_episodes"]), desc="Training Progress"):
             action = self.get_action_in_training(x)
             x, x_encoded_next, reward, done = self.world.step(action)
             self.update_V(x_encoded, x_encoded_next, reward)
