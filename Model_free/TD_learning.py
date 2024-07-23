@@ -1,182 +1,98 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
-from copy import copy
-import pickle
-
-from Utils import Environment
-
-STATS_EVERY = 100
+import matplotlib.pyplot as plt
 
 class TD_learning:
 
-    def __init__(self, world: Environment, load_V = False):
-        self.world = copy(world)
-        self.u_max_abs = world.mparams.u_max_abs
+    def __init__(self, env, load_V=False):
+        self.env = env
 
-        self.hyperparamters = {
-            "train_episodes": 200,
-            "max_steps": self.world.lparams.max_steps,
-            "theta_dot_max_abs": 8,
-            "encoded_state_bins": (21, 21, 65),
+        self.hyperparameters = {
+            "episodes": 30000,
+            "state_bins": [21, 21, 65],
             "action_bins": 17,
             "discount_factor": 0.95,
-            "momentum": 0.1,
-            "exploration_factor": 0.1
+            "l_r": 0.1,
+            "eps": 1.,
+            "eps_decay_value": 0.999,
+            "eps_min": 0.1
         }
 
-        # compute state bins
-        self.U = np.zeros(self.hyperparamters["action_bins"])
-        du = 2*self.u_max_abs/(self.U.shape[0]-1)
-        for k in range(self.U.shape[0]):
-            self.U[k] = -self.u_max_abs + k*du
+        # compute action bins
+        du = (env.action_space.high - env.action_space.low)/(self.hyperparameters["action_bins"]-1)
+        self.action_space = np.zeros(self.hyperparameters["action_bins"])
+        for k in range(self.hyperparameters["action_bins"]):
+            self.action_space[k] = env.action_space.low[0] + k*du[0]
 
         if load_V:
-            self.V = np.load('Model_free/output/td_learning_V.npy')
+            self.V = np.load('Model_free/output/V_learning.npy')
         else:
-            self.V = np.random.random(self.hyperparamters["encoded_state_bins"])-2
+            self.V = np.random.uniform(low=-2, high=0, size=self.hyperparameters["state_bins"])
         
-        self.bin_ref, _ = self.find_bins(self.world.get_encoded_reference())
+        self.dx = (env.observation_space.high - env.observation_space.low) / [n-1 for n in self.hyperparameters["state_bins"]]
 
-    def find_bins(self, x_encoded):
-        dcos = 2/(self.hyperparamters["encoded_state_bins"][0]-1)
-        dsin = 2/(self.hyperparamters["encoded_state_bins"][1]-1)
-        dtheta_dot = 2*self.hyperparamters["theta_dot_max_abs"]/(self.hyperparamters["encoded_state_bins"][2]-1)
-        dX_encoded = np.array([dcos, dsin, dtheta_dot])
-        X_encoded_min = np.array([-1., -1., -self.hyperparamters["theta_dot_max_abs"]])
+    def get_bin(self, x):
+        ds = (x - self.env.observation_space.low) / self.dx
+        return ds.astype(np.int32)
 
-        bin_indeces = np.round((x_encoded-X_encoded_min) / dX_encoded).astype(np.int32)
-        
-        if len(x_encoded.shape) == 1:
-            bin_indeces[0] = np.clip(bin_indeces[0], 0, self.hyperparamters["encoded_state_bins"][0]-1)
-            bin_indeces[1] = np.clip(bin_indeces[1], 0, self.hyperparamters["encoded_state_bins"][1]-1)
-            bin_indeces[2] = np.clip(bin_indeces[2], 0, self.hyperparamters["encoded_state_bins"][2]-1)
-            bin_encoded_states = X_encoded_min + bin_indeces*dX_encoded
-            bin_indeces = tuple(bin_indeces)
-        else:
-            bin_indeces = np.round((x_encoded-X_encoded_min) / dX_encoded).astype(np.int32)
-            bin_indeces[:, 0] = np.clip(bin_indeces[:, 0], 0, self.hyperparamters["encoded_state_bins"][0]-1)
-            bin_indeces[:, 1] = np.clip(bin_indeces[:, 1], 0, self.hyperparamters["encoded_state_bins"][1]-1)
-            bin_indeces[:, 2] = np.clip(bin_indeces[:, 2], 0, self.hyperparamters["encoded_state_bins"][2]-1)
-            bin_encoded_states = X_encoded_min + bin_indeces*dX_encoded
-            bin_indeces = list(map(tuple, bin_indeces.reshape(-1, 3)))
-        return bin_indeces, bin_encoded_states
-    
-    def train(self):
-        x, x_encoded = self.world.reset()
-        self.world.lparams.max_steps = self.hyperparamters["max_steps"]
-        action = 0
-        it = 0
-        episode_reward = 0
-        episode_rewards = []
-        aggr_episode_rewards = {'it': [], 'avg': [], 'ep': []}
-        for it in tqdm(range(self.hyperparamters["train_episodes"]), desc="Training Progress"):
-            action = self.get_action_in_training(x)
-            x, x_encoded_next, reward, done = self.world.step(action)
-            self.update_V(x_encoded, x_encoded_next, reward)
-            episode_reward += reward
-            if done:
-                episode_rewards.append(episode_reward)
-                episode_reward = 0
-                it += 1
-                if not it % STATS_EVERY:
-                    aggr_episode_rewards['it'].append(it)
-                    aggr_episode_rewards['avg'].append(sum(episode_rewards[-STATS_EVERY:]) / STATS_EVERY)
-                action = 0
-                x, x_encoded = self.world.reset()
-                if it < self.hyperparamters["train_episodes"]:
-                    print(f"Training episode {it+1}/{self.hyperparamters['train_episodes']}")   
-            x_encoded = x_encoded_next.copy()
-        aggr_episode_rewards['ep'] = episode_rewards
+    def get_action(self, x, deterministic=True):
+        if not deterministic and np.random.rand() < self.hyperparameters["eps"]: #exploration
+            return self.env.action_space.sample()
+        x_next, reward = self.predict(x)
+        next_V = self.V[tuple(self.get_bin(x_next).T)]
+        td = reward + self.hyperparameters["discount_factor"] * next_V
+        return [self.action_space[np.argmax(td)]]
+
+    def learn(self):
+        rewards = []
+        average_rewards = []
+        for it in tqdm(range(self.hyperparameters["episodes"]), desc="Training Progress"):
+            x, _ = self.env.reset()
+            rewards.append(0.)
+            while True:
+                action = self.get_action(x, deterministic=False)
+                x_next, reward, done, truncated, _ = self.env.step(action)
+                self.update_V(x, x_next, reward)
+                rewards[-1] += reward
+                if done or truncated:
+                    break
+                x = x_next.copy()
+                if self.hyperparameters["eps"] > self.hyperparameters["eps_min"]:
+                    self.hyperparameters["eps"] *= self.hyperparameters["eps_decay_value"]
+            if it % 1000 == 0:
+                average_rewards.append(np.mean(np.array(rewards)))
+                # Plot the discounted cumulative rewards
+                plt.plot(np.arange(len(average_rewards), dtype=np.int64), average_rewards, color='blue')
+                plt.xlabel('Iteration')
+                plt.ylabel('Cumulative Rewards')
+                plt.title('Cumulative Rewards')
+                plt.grid(True)
+                plt.draw()
+                plt.pause(0.1)
+                rewards = []
+
         print("Saving V")
-        np.save('Model_free/output/td_learning_V.npy', self.V)
-        print("Saving statistics")
-        with open('Model_free/statistics/TD_learning_statistics.pkl', 'wb') as f:
-            pickle.dump(aggr_episode_rewards, f)
-
-    def get_action_in_training(self, x):        
-        if np.random.rand() < self.hyperparamters["exploration_factor"]: #exploration
-            return np.random.choice(self.U)
-        else: #exploitation
-            possible_encoded_states = []
-            for u in self.U:
-                x_next = self.world.compute_next_state(x, u)
-                possible_encoded_states.append(self.world.encode_state(x_next))
-            possible_encoded_states = np.array(possible_encoded_states)
-
-            bin_indeces, bin_encoded_states = self.find_bins(possible_encoded_states)
-            if all(t == bin_indeces[0] for t in bin_indeces):
-                return np.random.choice(self.U)
-
-            #compute td target for each bin state
-            td_targets = []
-            for i, x in enumerate(self.world.decode_state(bin_encoded_states)):
-                reward = self.world.reward(x, self.U[i])
-                td_target = reward + self.hyperparamters["discount_factor"]*self.V[bin_indeces[i]]
-                td_targets.append(td_target)
-            td_targets = np.array(td_targets)
-            
-            #return action with higher td target
-            return self.U[np.argmax(td_targets)]
-        
-    def get_action(self, x):        
-        possible_encoded_states = []
-        for u in self.U:
-            x_encoded_next = self.world.compute_next_encoded_state(self.world.encode_state(x), u)
-            possible_encoded_states.append(x_encoded_next)
-        possible_encoded_states = np.array(possible_encoded_states)
-
-        bin_indeces, bin_encoded_states = self.find_bins(possible_encoded_states)
-        if all(t == bin_indeces[0] for t in bin_indeces):
-            return np.random.choice(self.U)
-
-        #compute td target for each bin state
-        td_targets = []
-        for i, x in enumerate(self.world.decode_state(bin_encoded_states)):
-            reward = self.world.reward(x, self.U[i])
-            td_target = reward + self.hyperparamters["discount_factor"]*self.V[bin_indeces[i]]
-            td_targets.append(td_target)
-        td_targets = np.array(td_targets)
-        
-        #return action with higher td target
-        return self.U[np.argmax(td_targets)]
+        np.save('Model_free/output/V_learning.npy', self.V)
     
-    def update_V(self, x_encoded, x_encoded_next, reward):
-        bin_indeces, _ = self.find_bins(np.append([x_encoded], [x_encoded_next], axis=0))
-        if bin_indeces[0] == self.bin_ref:
-            print(x_encoded, self.world.x_ref, bin_indeces[0])
-            self.V[bin_indeces[0]] = 0
-            print("ref reached in training !!!!!!!!!!")
+    def update_V(self, x, x_next, reward):
+        x_bin = tuple(self.get_bin(x))
+        x_next_bin = tuple(self.get_bin(x_next))
+        if x_next_bin[0] == 0 and x_next_bin[1] == 1:
+            self.V[x_bin] = 0.
         else:
-            V_new = reward + self.hyperparamters["discount_factor"]*self.V[bin_indeces[1]]
-            self.V[bin_indeces[0]] = (1-self.hyperparamters["momentum"])*self.V[bin_indeces[0]] + self.hyperparamters["momentum"]*V_new
-    
-    def plot_V(self):
-        if len(self.V.shape) == 2:
-            fig = plt.figure()
-            ax = fig.add_subplot(111, projection='3d')
+            v_next = self.V[x_next_bin]
+            v_expected = reward + self.hyperparameters["discount_factor"]*v_next
+            self.V[x_bin] = (1-self.hyperparameters["l_r"])*self.V[x_bin] + self.hyperparameters["l_r"]*v_expected
 
-            # Create grid of theta and theta_dot values
-            theta, theta_dot = np.meshgrid(range(self.V.shape[0]), range(self.V.shape[1]))
+    def predict(self, x):
+        cos, sin, theta_dot = x
 
-            # Plot the 3D surface
-            ax.plot_surface(theta, theta_dot, self.V, cmap='viridis')
+        theta = np.clip(np.arctan2(sin, cos), -np.pi, np.pi)
+        reward = -(theta ** 2 + 0.1 * theta_dot**2 + 0.001 * (self.action_space**2))
 
-            # Set labels and title
-            ax.set_xlabel('theta')
-            ax.set_ylabel('theta_dot')
-            ax.set_zlabel('Value')
-            ax.set_title('Value Function Map')
+        new_theta_dot = theta_dot + (3 * self.env.unwrapped.g / (2 * self.env.unwrapped.l) * sin + 3.0 / (self.env.unwrapped.m * self.env.unwrapped.l**2) * self.action_space) * self.env.unwrapped.dt
+        new_theta_dot = np.clip(new_theta_dot, -self.env.unwrapped.max_speed, self.env.unwrapped.max_speed)
+        new_theta = theta + new_theta_dot * self.env.unwrapped.dt
 
-            # Show the plot
-            plt.show()
-        else:
-            print("Plot enabled only for 2D value function !!!!!!!!!")
 
-    def plot_statistics(self): 
-        with open('Model_free/statistics/TD_learning_statistics.pkl', 'rb') as f:
-            aggr_episode_rewards = pickle.load(f)
-        plt.plot(aggr_episode_rewards['it'], aggr_episode_rewards['avg'], label="average rewards")
-        plt.plot(STATS_EVERY + np.arange(len(aggr_episode_rewards['ep'])-STATS_EVERY), aggr_episode_rewards['ep'][STATS_EVERY:], label="all rewards", alpha=0.5)
-        plt.legend(loc=4)
-        plt.show()
+        return np.column_stack((np.cos(new_theta), np.sin(new_theta), new_theta_dot)), reward
