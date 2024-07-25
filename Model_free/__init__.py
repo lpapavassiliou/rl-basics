@@ -1,4 +1,5 @@
-# from .random_policy import Random
-from .TD_learning import TD_learning
-from .Q_learning import Q_learning
-# from .NN_Q_learning import NN_Q_learning
+from .Random import Random_Policy
+from .Tabular_V import Tabular_V_Policy
+from .Tabular_Q import Tabular_Q_Policy
+from .DQN import DQN_Policy
+from .SAC import SAC_Policy

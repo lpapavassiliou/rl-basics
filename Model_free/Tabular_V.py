@@ -2,7 +2,7 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-class TD_learning:
+class Tabular_V_Policy:
 
     def __init__(self, env, load_V=False):
         self.env = env
@@ -25,7 +25,7 @@ class TD_learning:
             self.action_space[k] = env.action_space.low[0] + k*du[0]
 
         if load_V:
-            self.V = np.load('Model_free/output/V_learning.npy')
+            self.V = np.load('Model_free/output/Tabular_V.npy')
         else:
             self.V = np.random.uniform(low=-2, high=0, size=self.hyperparameters["state_bins"])
         
@@ -57,9 +57,9 @@ class TD_learning:
                 if done or truncated:
                     break
                 x = x_next.copy()
-                if self.hyperparameters["eps"] > self.hyperparameters["eps_min"]:
-                    self.hyperparameters["eps"] *= self.hyperparameters["eps_decay_value"]
-            if it % 1000 == 0:
+            if self.hyperparameters["eps"] > self.hyperparameters["eps_min"]:
+                self.hyperparameters["eps"] *= self.hyperparameters["eps_decay_value"]
+            if it % 100 == 0:
                 average_rewards.append(np.mean(np.array(rewards)))
                 # Plot the discounted cumulative rewards
                 plt.plot(np.arange(len(average_rewards), dtype=np.int64), average_rewards, color='blue')
@@ -72,7 +72,7 @@ class TD_learning:
                 rewards = []
 
         print("Saving V")
-        np.save('Model_free/output/V_learning.npy', self.V)
+        np.save('Model_free/output/Tabular_V.npy', self.V)
     
     def update_V(self, x, x_next, reward):
         x_bin = tuple(self.get_bin(x))

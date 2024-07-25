@@ -1,8 +1,7 @@
 import gymnasium as gym
 import numpy as np
 
-# from Model_free import Random, TD_learning, Q_learning, NN_Q_learning
-from Model_free import TD_learning, Q_learning
+from Model_free import *
 
 # Set the random seed for reproducibility
 np.random.seed(41)
@@ -10,12 +9,17 @@ np.random.seed(41)
 # Initialize the environment
 env = gym.make("Pendulum-v1")
 
-# Initialize the policy
-# Uncomment the desired policy
-# policy = Random(u_max=env.mparams.u_max_abs, u_min=-env.mparams.u_max_abs)
-policy = TD_learning(env, load_V=False)
-# policy = Q_learning(env, load_Q=False)
-# policy = NN_Q_learning(env, load_Q=False)
+# Initialize the policies
+policies = [
+    Random_Policy(u_max=env.action_space.high, u_min=-env.action_space.low),
+    Tabular_V_Policy(env),
+    Tabular_Q_Policy(env),
+    DQN_Policy(env),
+    SAC_Policy(env)
+]
+
+index = 4
+policy = policies[index]
 
 # Train the policy
 policy.learn()

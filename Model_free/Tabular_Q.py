@@ -2,7 +2,7 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-class Q_learning:
+class Tabular_Q_Policy:
 
     def __init__(self, env, load_Q = False):
         self.env = env
@@ -25,7 +25,7 @@ class Q_learning:
             self.action_space[k] = [env.action_space.low[0] + k*du[0]]
 
         if load_Q:
-            self.Q = np.load('Model_free/output/Q_learning.npy')
+            self.Q = np.load('Model_free/output/Tabular_Q.npy')
         else:
             self.Q = np.random.uniform(low=-2, high=-0, size=(self.hyperparameters["state_bins"] + [self.hyperparameters["action_bins"]]))
         
@@ -58,9 +58,9 @@ class Q_learning:
                 if done or truncated:
                     break
                 x = x_next.copy()
-                if self.hyperparameters["eps"] > self.hyperparameters["eps_min"]:
-                    self.hyperparameters["eps"] *= self.hyperparameters["eps_decay_value"]
-            if it % 1000 == 0:
+            if self.hyperparameters["eps"] > self.hyperparameters["eps_min"]:
+                self.hyperparameters["eps"] *= self.hyperparameters["eps_decay_value"]
+            if it % 100 == 0:
                 average_rewards.append(np.mean(np.array(rewards)))
                 # Plot the discounted cumulative rewards
                 plt.plot(np.arange(len(average_rewards), dtype=np.int64), average_rewards, color='blue')
@@ -73,7 +73,7 @@ class Q_learning:
                 rewards = []
 
         print("Saving Q")
-        np.save('Model_free/output/Q_learning.npy', self.Q)
+        np.save('Model_free/output/Tabular_Q.npy', self.Q)
     
     def update_Q(self, x, action_index, x_next, reward):
         x_bin = self.get_bin(x)
