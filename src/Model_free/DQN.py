@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 from Utils import Buffer
 
+
 class NN_Q(nn.Module):
     def __init__(self, input_dim, output_dim, l_r):
         super(NN_Q, self).__init__()
@@ -16,12 +17,13 @@ class NN_Q(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Linear(32, output_dim)
+            nn.Linear(32, output_dim),
         )
         self.optimizer = optim.Adam(self.parameters(), lr=l_r)
 
     def forward(self, x):
         return self.network(x)
+
 
 class DQN_Policy:
     def __init__(self, env, load_Q=False):
@@ -31,33 +33,45 @@ class DQN_Policy:
             "episodes": 10000,
             "n_steps": 200,
             "epochs": 10,
-            "batch_size": 32, 
-            "buffer_size": 10000*200,
+            "batch_size": 32,
+            "buffer_size": 10000 * 200,
             "action_bins": 17,
             "discount_factor": 0.98,
             "l_r": 1e-3,
             "tau": 0.01,
-            "eps": 1.,
+            "eps": 1.0,
             "eps_decay_value": 0.999,
-            "eps_min": 1e-1
+            "eps_min": 1e-1,
         }
 
         self.buffer = Buffer(buffer_size=self.hyperparameters["buffer_size"])
 
         # compute action bins
-        du = (env.action_space.high - env.action_space.low)/(self.hyperparameters["action_bins"]-1)
+        du = (env.action_space.high - env.action_space.low) / (self.hyperparameters["action_bins"] - 1)
         self.action_space = {}
         for k in range(self.hyperparameters["action_bins"]):
-            self.action_space[k] = [env.action_space.low[0] + k*du[0]]
+            self.action_space[k] = [env.action_space.low[0] + k * du[0]]
 
         if load_Q:
-            self.Q = NN_Q(input_dim=env.observation_space.shape[0], output_dim=self.hyperparameters["action_bins"], l_r=self.hyperparameters["l_r"])
-            self.Q.load_state_dict(torch.load('Model_free/output/DQN_NN.pth'))
+            self.Q = NN_Q(
+                input_dim=env.observation_space.shape[0],
+                output_dim=self.hyperparameters["action_bins"],
+                l_r=self.hyperparameters["l_r"],
+            )
+            self.Q.load_state_dict(torch.load("src/Model_free/output/DQN_NN.pth"))
         else:
-            self.Q = NN_Q(input_dim=env.observation_space.shape[0], output_dim=self.hyperparameters["action_bins"], l_r=self.hyperparameters["l_r"])
-            self.Q_target = NN_Q(input_dim=env.observation_space.shape[0], output_dim=self.hyperparameters["action_bins"], l_r=self.hyperparameters["l_r"])
+            self.Q = NN_Q(
+                input_dim=env.observation_space.shape[0],
+                output_dim=self.hyperparameters["action_bins"],
+                l_r=self.hyperparameters["l_r"],
+            )
+            self.Q_target = NN_Q(
+                input_dim=env.observation_space.shape[0],
+                output_dim=self.hyperparameters["action_bins"],
+                l_r=self.hyperparameters["l_r"],
+            )
             self.Q_target.load_state_dict(self.Q.state_dict())
-            
+
         self.cum_rewards = []
         self.average_rewards = []
 
@@ -71,8 +85,8 @@ class DQN_Policy:
                 self.hyperparameters["eps"] *= self.hyperparameters["eps_decay_value"]
 
         print("Saving Q")
-        torch.save(self.Q.state_dict(), 'Model_free/output/DQN_NN.pth')
-    
+        torch.save(self.Q.state_dict(), "src/Model_free/output/DQN_NN.pth")
+
     def collect_rollout(self):
         x, _ = self.env.reset()
         rewards = 0
@@ -88,7 +102,9 @@ class DQN_Policy:
 
     def train(self):
         for _ in range(self.hyperparameters["epochs"]):
-            states, action_indeces, next_states, rewards, dones = self.buffer.sample(self.hyperparameters["batch_size"], "torch") 
+            states, action_indeces, next_states, rewards, dones = self.buffer.sample(
+                self.hyperparameters["batch_size"], "torch"
+            )
             td_target = self.get_target(next_states, rewards, dones)
 
             #### Q train ####
@@ -100,31 +116,37 @@ class DQN_Policy:
 
             #### Q target soft-update ####
             for param_target, param in zip(self.Q_target.parameters(), self.Q.parameters()):
-                param_target.data.copy_(param_target.data * (1.0 - self.hyperparameters["tau"]) + param.data * self.hyperparameters["tau"])
+                param_target.data.copy_(
+                    param_target.data * (1.0 - self.hyperparameters["tau"]) + param.data * self.hyperparameters["tau"]
+                )
 
     def get_action_index(self, x, deterministic=True):
         if not deterministic and np.random.rand() < self.hyperparameters["eps"]:  # exploration
             return np.random.choice(self.hyperparameters["action_bins"])
-        
+
         with torch.no_grad():
             return torch.argmax(self.Q(torch.tensor(x))).item()
-    
+
     def get_action(self, x, deterministic=True):
         return self.action_space[self.get_action_index(x, deterministic)]
-        
+
     def get_target(self, x_next, r, done):
         with torch.no_grad():
             q_target = self.Q_target(x_next).max(1)[0]
-            target = r + (~done) * self.hyperparameters["discount_factor"]*q_target
+            target = r + (~done) * self.hyperparameters["discount_factor"] * q_target
         return target.unsqueeze(1)
-    
+
     def plot_rewards(self):
         self.average_rewards.append(np.mean(np.array(self.cum_rewards)))
         # Plot the discounted cumulative rewards
-        plt.plot(np.arange(len(self.average_rewards), dtype=np.int64), self.average_rewards, color='blue')
-        plt.xlabel('Iteration')
-        plt.ylabel('Cumulative Rewards')
-        plt.title('Cumulative Rewards')
+        plt.plot(
+            np.arange(len(self.average_rewards), dtype=np.int64),
+            self.average_rewards,
+            color="blue",
+        )
+        plt.xlabel("Iteration")
+        plt.ylabel("Cumulative Rewards")
+        plt.title("Cumulative Rewards")
         plt.grid(True)
         plt.draw()
         plt.pause(0.1)

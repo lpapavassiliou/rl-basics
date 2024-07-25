@@ -15,7 +15,7 @@ policies = [
     Tabular_V_Policy(env),
     Tabular_Q_Policy(env),
     DQN_Policy(env),
-    SAC_Policy(env)
+    SAC_Policy(env),
 ]
 
 index = 4
@@ -26,4 +26,3 @@ policy.learn()
 
 # Close the environment when done
 env.close()
-

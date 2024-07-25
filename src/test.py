@@ -11,7 +11,7 @@ policies = [
     Tabular_V_Policy(env, load_V=True),
     Tabular_Q_Policy(env, load_Q=True),
     DQN_Policy(env, load_Q=True),
-    SAC_Policy(env, load_PI=True)
+    SAC_Policy(env, load_PI=True),
 ]
 
 index = 4
@@ -24,10 +24,10 @@ x, _ = env.reset()
 while True:
     # Get action from the policy
     u = policy.get_action(x)
-    
+
     # Step the environment
     x, reward, done, truncated, _ = env.step(u)
-    
+
     # Check if the episode is done
     if done or truncated:
         break

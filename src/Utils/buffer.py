@@ -2,14 +2,10 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
+
 class Buffer:
 
-    def __init__(
-        self,
-        buffer_size,
-        n_x = 3,
-        n_u = 1
-    ):
+    def __init__(self, buffer_size, n_x=3, n_u=1):
         self.buffer_size = buffer_size
         self.n_x = n_x
         self.n_u = n_u
@@ -41,7 +37,7 @@ class Buffer:
         """
         batch_inds = np.random.randint(0, self.size(), size=batch_size)
         return self._get_samples(batch_inds, type)
-    
+
     def _get_samples(self, batch_inds, type):
         if type == "torch":
             data = (
@@ -49,26 +45,19 @@ class Buffer:
                 torch.tensor(self.actions[batch_inds], dtype=torch.int64),
                 torch.tensor(self.next_states[batch_inds], dtype=torch.float32),
                 torch.tensor(self.rewards[batch_inds], dtype=torch.float32),
-                torch.tensor(self.dones[batch_inds], dtype=torch.bool)
+                torch.tensor(self.dones[batch_inds], dtype=torch.bool),
             )
         else:
             data = (
-            self.states[batch_inds],
-            self.actions[batch_inds],
-            self.next_states[batch_inds],
-            self.rewards[batch_inds],
-            self.dones[batch_inds]
+                self.states[batch_inds],
+                self.actions[batch_inds],
+                self.next_states[batch_inds],
+                self.rewards[batch_inds],
+                self.dones[batch_inds],
             )
         return data
 
-    def add(
-        self,
-        state,
-        action,
-        next_state,
-        reward,
-        done
-    ):  
+    def add(self, state, action, next_state, reward, done):
         self.states[self.pos] = np.array(state)
         self.actions[self.pos] = np.array(action)
         self.next_states[self.pos] = np.array(next_state)
