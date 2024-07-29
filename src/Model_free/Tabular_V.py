@@ -1,11 +1,32 @@
+import gymnasium as gym
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 
 class Tabular_V_Policy:
+    """
+    Tabular Value Iteration Policy for training an agent using the Value Iteration algorithm.
 
-    def __init__(self, env, load_V=False):
+    Args:
+        env (gym.Env): The environment for the agent to interact with.
+        load_V (bool): Flag to load a pre-trained value function (default is False).
+
+    Methods:
+        get_bin(x): Get the bin index for a given state.
+        get_action(x, deterministic): Get an action based on the input state.
+        learn(): Train the agent using the Value Iteration algorithm.
+        update_V(x, x_next, reward): Update the value function based on state transitions and rewards.
+        predict(x): Predict the next state and reward based on the current state.
+
+    Attributes:
+        hyperparameters (dict): Dictionary containing hyperparameters for training.
+        action_space (np.ndarray): Array representing the action space.
+        V (np.ndarray): Array representing the value function.
+        dx (np.ndarray): Array representing the state space discretization.
+    """
+
+    def __init__(self, env: gym.Env, load_V: bool = False) -> None:
         self.env = env
 
         self.hyperparameters = {
@@ -34,11 +55,30 @@ class Tabular_V_Policy:
             n - 1 for n in self.hyperparameters["state_bins"]
         ]
 
-    def get_bin(self, x):
+    def get_bin(self, x: np.ndarray) -> np.ndarray:
+        """
+        Calculate the index of the discrete bin for a given state.
+
+        Args:
+            x (np.ndarray): The state for which to calculate the bin index.
+
+        Returns:
+            np.ndarray: The bin index for the given state.
+        """
         ds = (x - self.env.observation_space.low) / self.dx
         return ds.astype(np.int32)
 
-    def get_action(self, x, deterministic=True):
+    def get_action(self, x: np.ndarray, deterministic: bool = True) -> np.ndarray:
+        """
+        Get the action for the given state.
+
+        Args:
+            x (np.ndarray): The state for which to get the action.
+            deterministic (bool, optional): Whether to use deterministic policy. Defaults to True.
+
+        Returns:
+            np.ndarray: The action for the given state.
+        """
         if not deterministic and np.random.rand() < self.hyperparameters["eps"]:  # exploration
             return self.env.action_space.sample()
         x_next, reward = self.predict(x)
@@ -46,7 +86,18 @@ class Tabular_V_Policy:
         td = reward + self.hyperparameters["discount_factor"] * next_V
         return [self.action_space[np.argmax(td)]]
 
-    def learn(self):
+    def learn(self) -> None:
+        """
+        Trains the Tabular_V policy over a specified number of episodes.
+
+        This function iterates over a specified number of episodes and performs the following steps:
+        1. Resets the environment.
+        2. Collects a rollout by executing the agent in the environment.
+        3. Updates the value function.
+        4. Updates the exploration rate.
+        5. Checks if it's time to plot the discounted cumulative rewards.
+        6. Resets the environment.
+        """
         rewards = []
         average_rewards = []
         for it in tqdm(range(self.hyperparameters["episodes"]), desc="Training Progress"):
@@ -81,7 +132,15 @@ class Tabular_V_Policy:
         print("Saving V")
         np.save("src/Model_free/output/Tabular_V.npy", self.V)
 
-    def update_V(self, x, x_next, reward):
+    def update_V(self, x: np.ndarray, x_next: np.ndarray, reward: float) -> None:
+        """
+        Updates the value function V based on the given state, next state, and reward.
+
+        Parameters:
+            x (np.ndarray): The current state.
+            x_next (np.ndarray): The next state.
+            reward (float): The reward obtained from the current state and action.
+        """
         x_bin = tuple(self.get_bin(x))
         x_next_bin = tuple(self.get_bin(x_next))
         if x_next_bin[0] == 0 and x_next_bin[1] == 1:
@@ -91,7 +150,25 @@ class Tabular_V_Policy:
             v_expected = reward + self.hyperparameters["discount_factor"] * v_next
             self.V[x_bin] = (1 - self.hyperparameters["l_r"]) * self.V[x_bin] + self.hyperparameters["l_r"] * v_expected
 
-    def predict(self, x):
+    def predict(self, x: np.ndarray) -> tuple[np.ndarray, float]:
+        """
+        Predicts the next state and reward based on the given current state.
+
+        Parameters:
+            x (np.ndarray): The current state represented as a 1D numpy array with three elements:
+                cos (float): The cosine component of the current state.
+                sin (float): The sine component of the current state.
+                theta_dot (float): The angular velocity component of the current state.
+
+        Returns:
+            tuple[np.ndarray, float]: A tuple containing the next state and the corresponding reward.
+                The next state is represented as a 1D numpy array with three elements:
+                    new_cos (float): The cosine component of the next state.
+                    new_sin (float): The sine component of the next state.
+                    new_theta_dot (float): The angular velocity component of the next state.
+                The reward is a float value representing the reward obtained from the current state and action.
+
+        """
         cos, sin, theta_dot = x
 
         theta = np.clip(np.arctan2(sin, cos), -np.pi, np.pi)

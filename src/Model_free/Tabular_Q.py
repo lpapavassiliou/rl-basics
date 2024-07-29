@@ -1,11 +1,26 @@
+import gymnasium as gym
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 
 class Tabular_Q_Policy:
+    """
+    Tabular Q-Learning Policy for training an agent using Q-learning on a discrete state and action space.
 
-    def __init__(self, env, load_Q=False):
+    Args:
+        env: The environment to train the agent on.
+        load_Q: Whether to load a pre-trained Q-table.
+
+    Methods:
+        - get_bin(x): Returns the bin index for a given state x.
+        - get_action(x, deterministic=True): Returns the action for a given state x.
+        - get_action_index(x, deterministic=True): Returns the index of the action for a given state x.
+        - learn(): Trains the agent using Q-learning.
+        - update_Q(x, action_index, x_next, reward): Updates the Q-table based on the observed transition.
+    """
+
+    def __init__(self, env: gym.Env, load_Q: bool = False) -> None:
         self.env = env
 
         self.hyperparameters = {
@@ -38,20 +53,60 @@ class Tabular_Q_Policy:
             n - 1 for n in self.hyperparameters["state_bins"]
         ]
 
-    def get_bin(self, x):
+    def get_bin(self, x: np.ndarray) -> tuple[int, int, int]:
+        """
+        Get the index of the discrete bin for a given state.
+
+        Args:
+            x (np.ndarray): The state for which to get the bin index.
+
+        Returns:
+            tuple[int, int, int]: The bin index for the given state.
+        """
         ds = (x - self.env.observation_space.low) / self.dx
         return tuple(ds.astype(np.int32))
 
-    def get_action(self, x, deterministic=True):
+    def get_action(self, x: np.ndarray, deterministic: bool = True) -> np.ndarray:
+        """
+        Get the action for the given state.
+
+        Args:
+            x (np.ndarray): The state for which to get the action.
+            deterministic (bool, optional): Whether to use deterministic policy. Defaults to True.
+
+        Returns:
+            np.ndarray: The action for the given state.
+        """
         return self.action_space[self.get_action_index(x, deterministic)]
 
-    def get_action_index(self, x, deterministic=True):
+    def get_action_index(self, x: np.ndarray, deterministic: bool = True) -> int:
+        """
+        Get the index of the action to take for a given state.
+
+        Args:
+            x (np.ndarray): The state for which to get the action.
+            deterministic (bool, optional): Whether to use deterministic policy. Defaults to True.
+
+        Returns:
+            int: The index of the action to take.
+        """
         if not deterministic and np.random.rand() < self.hyperparameters["eps"]:  # exploration
             return np.random.randint(0, self.hyperparameters["action_bins"])
         x_bin = self.get_bin(x)
         return np.argmax(self.Q[x_bin])
 
-    def learn(self):
+    def learn(self) -> None:
+        """
+        Trains the agent for a specified number of episodes.
+
+        This function iterates over a specified number of episodes and performs the following steps for each episode:
+        1. Resets the environment and initializes the reward for the episode.
+        2. Executes the agent in the environment until the episode is done or truncated.
+        3. Updates the Q-value table using the obtained state, action, next state, and reward.
+        4. Decays the epsilon value for the epsilon-greedy exploration strategy.
+        5. If the iteration is a multiple of 100, computes the average reward for the last 100 episodes and plots the discounted cumulative rewards.
+        6. Saves the Q-value table to a file.
+        """
         rewards = []
         average_rewards = []
         for it in tqdm(range(self.hyperparameters["episodes"]), desc="Training Progress"):
@@ -86,7 +141,16 @@ class Tabular_Q_Policy:
         print("Saving Q")
         np.save("src/Model_free/output/Tabular_Q.npy", self.Q)
 
-    def update_Q(self, x, action_index, x_next, reward):
+    def update_Q(self, x: np.ndarray, action_index: int, x_next: np.ndarray, reward: float) -> None:
+        """
+        Updates the Q-value table for a given state-action pair using the obtained next state, reward, and learning rate.
+
+        Parameters:
+            x (np.ndarray): The current state.
+            action_index (int): The index of the action taken.
+            x_next (np.ndarray): The next state.
+            reward (float): The reward obtained from the current state and action.
+        """
         x_bin = self.get_bin(x)
         x_next_bin = self.get_bin(x_next)
         if x_next_bin[0] == 0 and x_next_bin[1] == 1:
